@@ -1,0 +1,155 @@
+@page
+@model LibraryEbookOcr.Pages.UploadModel
+@{
+    ViewData["Title"] = "Upload PDF";
+}
+
+<div class="upload-page">
+    <h1 class="mb-2">Upload PDF</h1>
+    <p class="text-muted mb-4">
+        Upload a scanned (image-based) PDF. Week 1 saves the file and creates a Pending job.
+        OCR conversion comes in Week 2.
+    </p>
+
+    @* 成功 / 失敗訊息 *@
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="alert @(Model.IsSuccess ? "alert-success" : "alert-danger")" role="alert">
+            @Model.Message
+        </div>
+    }
+
+    @if (Model.IsSuccess)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="h5">Job created</h2>
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Job ID</dt>
+                    <dd class="col-sm-9"><code>@Model.JobId</code></dd>
+
+                    <dt class="col-sm-3">Original file</dt>
+                    <dd class="col-sm-9">@Model.OriginalFileName</dd>
+
+                    <dt class="col-sm-3">Stored as</dt>
+                    <dd class="col-sm-9"><code>Uploads/@Model.StoredFileName</code></dd>
+
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9"><span class="badge text-bg-warning">@Model.Status</span></dd>
+
+                    <dt class="col-sm-3">Created at</dt>
+                    <dd class="col-sm-9">@Model.CreatedAt</dd>
+                </dl>
+            </div>
+        </div>
+    }
+
+    @* enctype 必須是 multipart/form-data，才能上傳檔案 *@
+    <form method="post" enctype="multipart/form-data" id="uploadForm" class="upload-form">
+        <div id="dropZone" class="drop-zone mb-3">
+            <p class="mb-2 fw-semibold">Drag &amp; drop your PDF here</p>
+            <p class="text-muted small mb-3">or click to choose a file</p>
+            <input asp-for="PdfFile"
+                   type="file"
+                   accept="application/pdf,.pdf"
+                   class="form-control"
+                   id="pdfInput" />
+            <p id="fileInfo" class="small text-muted mt-2 mb-0"></p>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="uploadBtn">
+            Upload PDF
+        </button>
+        <span id="uploadingHint" class="ms-2 text-muted d-none">Uploading…</span>
+    </form>
+</div>
+
+@section Scripts {
+<script>
+    (function () {
+        const dropZone = document.getElementById('dropZone');
+        const pdfInput = document.getElementById('pdfInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const form = document.getElementById('uploadForm');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadingHint = document.getElementById('uploadingHint');
+        const maxBytes = 50 * 1024 * 1024;
+
+        function showFileInfo(file) {
+            if (!file) {
+                fileInfo.textContent = '';
+                return;
+            }
+            const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+            fileInfo.textContent = `Selected: ${file.name} (${sizeMb} MB)`;
+        }
+
+        function validateClientSide(file) {
+            if (!file) {
+                alert('Please choose a PDF file.');
+                return false;
+            }
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.pdf')) {
+                alert('Only PDF files are allowed.');
+                return false;
+            }
+            if (file.size === 0) {
+                alert('The file is empty.');
+                return false;
+            }
+            if (file.size > maxBytes) {
+                alert('File is too large. Maximum size is 50 MB.');
+                return false;
+            }
+            return true;
+        }
+
+        pdfInput.addEventListener('change', function () {
+            const file = pdfInput.files && pdfInput.files[0];
+            showFileInfo(file);
+        });
+
+        // 拖曳上傳：阻止瀏覽器直接打開檔案
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (eventName) {
+            dropZone.addEventListener(eventName, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        dropZone.addEventListener('dragover', function () {
+            dropZone.classList.add('drop-zone-active');
+        });
+
+        dropZone.addEventListener('dragleave', function () {
+            dropZone.classList.remove('drop-zone-active');
+        });
+
+        dropZone.addEventListener('drop', function (e) {
+            dropZone.classList.remove('drop-zone-active');
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (!files || files.length === 0) return;
+
+            const file = files[0];
+            if (!validateClientSide(file)) return;
+
+            // 把拖進來的檔案塞進 <input type="file">
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            pdfInput.files = dataTransfer.files;
+            showFileInfo(file);
+        });
+
+        form.addEventListener('submit', function (e) {
+            const file = pdfInput.files && pdfInput.files[0];
+            if (!validateClientSide(file)) {
+                e.preventDefault();
+                return;
+            }
+            uploadBtn.disabled = true;
+            uploadingHint.classList.remove('d-none');
+        });
+    })();
+</script>
+}
